@@ -37,6 +37,7 @@ STATUS_CODES = {
     610:    'G_GEO_BAD_KEY',
     620:    'G_GEO_TOO_MANY_QUERIES',
     }
+STATUS_MESSAGES = dict([[msg, code] for code, msg in STATUS_CODES.iteritems()])
 STATUS_OK = 200
     
     
@@ -199,7 +200,8 @@ class GoogleMaps(object):
         Constitution Ave NW & 10th St NW, Washington, DC, 20004
 
         More documentation on the format of the return value can be found at 
-        Google's `geocoder return value`_ reference.
+        Google's `geocoder return value`_ reference.  (Note: Some places have a 
+        `'SubAdministrativeArea'` and some don't.)
         
         .. _`geocoder return value`: http://code.google.com/apis/maps/documentation/geocoding/index.html#JSON
 
@@ -285,6 +287,7 @@ class GoogleMaps(object):
         
         :param address: The postal address to geocode.
         :type address: string
+        :return: `(latitude, longitude)` of `address`.
         :rtype: (float, float)
         :raises GoogleMapsError: If the address could not be geocoded.
         
@@ -374,6 +377,10 @@ class GoogleMaps(object):
                 results = response
             else: 
                 results['responseData']['results'].extend(response['responseData']['results'])
+            
+            # If we didn't get a full page of results, Google has run out; don't try again
+            if len(response['responseData']['results']) < self._LOCAL_RESULTS_PER_PAGE:
+                break
             start += len(response['responseData']['results'])
             
         if results is not None:

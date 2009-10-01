@@ -19,7 +19,7 @@ import googlemaps
 
 
 setup(name='googlemaps',
-      version='1.0',
+      version='1.0.1',
       author='John Kleint',
       author_email='py-googlemaps-general@lists.sourceforge.net',
       url='http://sourceforge.net/projects/py-googlemaps/',

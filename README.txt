@@ -1,5 +1,5 @@
-googlemaps 1.0
-21 Sep 2009
+googlemaps 1.0.1
+01 Oct 2009
 README
 =================
 
@@ -25,7 +25,7 @@ Dependencies
 ------------
 This module should work with Python 2.3 - 2.6+, and with Python 3+ via 2to3.
 Its only dependency is the json module, included as simplejson
-in earlier versions of the Python standard library, and available for
+in versions of the Python standard library before 2.6, and available for
 download as simplejson for even earlier versions of the Python standard 
 library.
 
