@@ -25,22 +25,10 @@ except ImportError:
     import simplejson as json       # pylint: disable-msg=F0401
 
 
+VERSION = '1.0.2'
 __all__ = ['GoogleMaps', 'GoogleMapsError']
 
 
-STATUS_CODES = {
-    200:    'G_GEO_SUCCESS',
-    500:    'G_GEO_SERVER_ERROR',
-    601:    'G_GEO_MISSING_QUERY',
-    602:    'G_GEO_UNKNOWN_ADDRESS',
-    603:    'G_GEO_UNAVAILABLE_ADDRESS',
-    610:    'G_GEO_BAD_KEY',
-    620:    'G_GEO_TOO_MANY_QUERIES',
-    }
-STATUS_MESSAGES = dict([[msg, code] for code, msg in STATUS_CODES.iteritems()])
-STATUS_OK = 200
-    
-    
 def fetch_json(query_url, params={}, headers={}):       # pylint: disable-msg=W0102
     """Retrieve a JSON object from a (parameterized) URL.
     
@@ -69,12 +57,31 @@ class GoogleMapsError(Exception):
     Methods of the :class:`GoogleMaps` raise this when something goes wrong.
      
     """
+    #: See http://code.google.com/apis/maps/documentation/geocoding/index.html#StatusCodes
+    #: for information on the meaning of these status codes.
+    G_GEO_SUCCESS               = 200
+    G_GEO_SERVER_ERROR          = 500
+    G_GEO_MISSING_QUERY         = 601
+    G_GEO_UNKNOWN_ADDRESS       = 602
+    G_GEO_UNAVAILABLE_ADDRESS   = 603
+    G_GEO_BAD_KEY               = 610
+    G_GEO_TOO_MANY_QUERIES      = 620   
+
+    _STATUS_MESSAGES = {
+        G_GEO_SUCCESS               : 'G_GEO_SUCCESS',
+        G_GEO_SERVER_ERROR          : 'G_GEO_SERVER_ERROR',
+        G_GEO_MISSING_QUERY         : 'G_GEO_MISSING_QUERY',
+        G_GEO_UNKNOWN_ADDRESS       : 'G_GEO_UNKNOWN_ADDRESS',
+        G_GEO_UNAVAILABLE_ADDRESS   : 'G_GEO_UNAVAILABLE_ADDRESS',
+        G_GEO_BAD_KEY               : 'G_GEO_BAD_KEY',
+        G_GEO_TOO_MANY_QUERIES      : 'G_GEO_TOO_MANY_QUERIES',
+    }
     
     def __init__(self, status, url=None, response=None):
         """Create an exception with a status and optional full response.
         
-        :param status: Either a key from :data:`STATUS_CODES` or a string 
-         explaining the exception.
+        :param status: Either a ``G_GEO_`` code or a string explaining the 
+         exception.
         :type status: int or string
         :param url: The query URL that resulted in the error, if any.
         :type url: string
@@ -89,14 +96,21 @@ class GoogleMapsError(Exception):
         
     def __str__(self):
         """Return a string representation of this :exc:`GoogleMapsError`."""
-        if self.status in STATUS_CODES:
-            return 'Error %d: %s' % (self.status, STATUS_CODES[self.status])
+        if self.status in self._STATUS_MESSAGES:
+            if self.response is not None and 'responseDetails' in self.response:
+                retval = 'Error %d: %s' % (self.status, self.response['responseDetails'])
+            else:
+                retval = 'Error %d: %s' % (self.status, self._STATUS_MESSAGES[self.status])
         else:
-            return str(self.status)
+            retval = str(self.status)
+        return retval
     
     def __unicode__(self):
         """Return a unicode representation of this :exc:`GoogleMapsError`."""
         return unicode(self.__str__())
+
+
+STATUS_OK = GoogleMapsError.G_GEO_SUCCESS
 
 
 class GoogleMaps(object):
@@ -106,36 +120,36 @@ class GoogleMaps(object):
     **Geocoding**: convert a postal address to latitude and longitude
     
     >>> from googlemaps import GoogleMaps
-    >>> gmaps = GoogleMaps()
-    >>> address = '10th St. & Constitution Ave. NW, Washington, D.C. 20560'
+    >>> gmaps = GoogleMaps(api_key)
+    >>> address = 'Constitution Ave NW & 10th St NW, Washington, DC'
     >>> lat, lng = gmaps.address_to_latlng(address)
     >>> print lat, lng
-    38.892087 -77.025989
+    38.8921021 -77.0260358
     
     **Reverse Geocoding**: find the nearest address to (lat, lng)
         
     >>> destination = gmaps.latlng_to_address(38.887563, -77.019929)
     >>> print destination
-    200 6th St SW, Washington, DC 20024, USA
+    Independence and 6th SW, Washington, DC 20024, USA
     
     **Local Search**: find places matching a query near a given location
     
-    >>> local = gmaps.local_search('dinner ' + destination)
-    >>> print local['responseData']['results'][0]['title']
-    Cosmo Cafe
+    >>> local = gmaps.local_search('cafe near ' + destination)
+    >>> print local['responseData']['results'][0]['titleNoFormatting']
+    Vie De France Bakery & Cafe
     
     **Directions**: turn-by-turn directions, distance, time, etc. from 
     point A to point B
     
     >>> directions = gmaps.directions(address, destination)
     >>> print directions['Directions']['Distance']['meters']
-    1026
+    1029
     >>> print directions['Directions']['Duration']['seconds']
-    115
+    106
     >>> for step in directions['Directions']['Routes'][0]['Steps']:
     ...     print step['descriptionHtml']
     Head <b>east</b> on <b>Constitution Ave NW</b> toward <b>9th St NW</b>
-    Turn <b>right</b> at <b>7th St NW</b>
+    Take the 2nd <b>right</b> onto <b>7th St NW</b>
     Turn <b>left</b> at <b>Independence Ave SW</b>
     
     This software is in no way associated with or endorsed by Google Inc.
@@ -184,24 +198,25 @@ class GoogleMaps(object):
         
         Interesting bits:
         
-        >>> gmaps = GoogleMaps()
-        >>> address = '10th St. & Constitution Ave. NW, Washington, D.C. 20560'
+        >>> gmaps = GoogleMaps(api_key)
+        >>> address = '350 Fifth Avenue New York, NY'
         >>> result = gmaps.geocode(address)
         >>> placemark = result['Placemark'][0]
         >>> lng, lat = placemark['Point']['coordinates'][0:2]    # Note these are backwards from usual
         >>> print lat, lng
-        38.892087 -77.025989
+        40.6721118 -73.9838823
         >>> details = placemark['AddressDetails']['Country']['AdministrativeArea']
-        >>> street = details['SubAdministrativeArea']['Locality']['Thoroughfare']['ThoroughfareName']
-        >>> city = details['SubAdministrativeArea']['Locality']['LocalityName']
+        >>> street = details['Locality']['Thoroughfare']['ThoroughfareName']
+        >>> city = details['Locality']['LocalityName']
         >>> state = details['AdministrativeAreaName']
-        >>> zipcode = details['SubAdministrativeArea']['Locality']['PostalCode']['PostalCodeNumber']
+        >>> zipcode = details['Locality']['PostalCode']['PostalCodeNumber']
         >>> print ', '.join((street, city, state, zipcode))
-        Constitution Ave NW & 10th St NW, Washington, DC, 20004
+        350 5th Ave, Brooklyn, NY, 11215
 
         More documentation on the format of the return value can be found at 
-        Google's `geocoder return value`_ reference.  (Note: Some places have a 
-        `'SubAdministrativeArea'` and some don't.)
+        Google's `geocoder return value`_ reference.  (Note: Some places have 
+        a `'SubAdministrativeArea'` and some don't; sometimes a `'Locality'` 
+        will have a `'DependentLocality'` and some don't.)
         
         .. _`geocoder return value`: http://code.google.com/apis/maps/documentation/geocoding/index.html#JSON
 
@@ -253,14 +268,14 @@ class GoogleMaps(object):
         
         Interesting bits:
         
-        >>> gmaps = GoogleMaps()
+        >>> gmaps = GoogleMaps(api_key)
         >>> reverse = gmaps.reverse_geocode(38.887563, -77.019929)
         >>> address = reverse['Placemark'][0]['address']
         >>> print address
-        200 6th St SW, Washington, DC 20024, USA
+        Independence and 6th SW, Washington, DC 20024, USA
         >>> accuracy = reverse['Placemark'][0]['AddressDetails']['Accuracy']
         >>> print accuracy
-        8
+        9
         
         :param lat: latitude
         :type lat: float
@@ -317,13 +332,13 @@ class GoogleMaps(object):
         Searches Google Local for the string `query` and returns a 
         dictionary of the results.
     
-        >>> gmaps = GoogleMaps()
+        >>> gmaps = GoogleMaps(api_key)
         >>> local = gmaps.local_search('sushi san francisco, ca')
         >>> result = local['responseData']['results'][0]
         >>> print result['titleNoFormatting']
         Sushi Groove
         >>> print result['streetAddress']
-        1916 Hyde Street
+        1916 Hyde St
         >>> print result['phoneNumbers'][0]['number']
         (415) 440-1905
 
@@ -372,7 +387,7 @@ class GoogleMaps(object):
             url, response = fetch_json(self._LOCAL_QUERY_URL, params=params, headers={'Referer': self.referrer_url})
             status_code = response['responseStatus']
             if status_code != STATUS_OK:
-                raise GoogleMapsError("Error %d: %s" % (status_code, response['responseDetails']), url=url, response=response)
+                raise GoogleMapsError(status_code, url=url, response=response)
             if results is None:
                 results = response
             else: 
@@ -393,21 +408,21 @@ class GoogleMaps(object):
 
         Interesting bits:
 
-        >>> gmaps = GoogleMaps()
-        >>> start = '10th St. & Constitution Ave. NW, Washington, D.C. 20560'
-        >>> end   = '200 6th St SW, Washington, DC 20024, USA'
+        >>> gmaps = GoogleMaps(api_key)
+        >>> start = 'Constitution Ave NW & 10th St NW, Washington, DC'
+        >>> end   = 'Independence and 6th SW, Washington, DC 20024, USA'
         >>> dirs  = gmaps.directions(start, end) 
         >>> time  = dirs['Directions']['Duration']['seconds']
         >>> dist  = dirs['Directions']['Distance']['meters']
         >>> route = dirs['Directions']['Routes'][0]
         >>> for step in route['Steps']:
-        ...    print step['Point']['coordinates'][1::-1]
+        ...    print step['Point']['coordinates'][1], step['Point']['coordinates'][0] 
         ...    print step['descriptionHtml']
-        [38.892090000000003, -77.025989999999993]
+        38.8921 -77.02604
         Head <b>east</b> on <b>Constitution Ave NW</b> toward <b>9th St NW</b>
-        [38.892060000000001, -77.021969999999996]
-        Turn <b>right</b> at <b>7th St NW</b>
-        [38.887560000000001, -77.021979999999999]
+        38.89208 -77.02191
+        Take the 2nd <b>right</b> onto <b>7th St NW</b>
+        38.88757 -77.02191
         Turn <b>left</b> at <b>Independence Ave SW</b>
 
         :param origin: Starting address

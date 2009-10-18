@@ -1,5 +1,5 @@
-googlemaps 1.0.1
-01 Oct 2009
+googlemaps 1.0.2
+16 Oct 2009
 README
 =================
 
@@ -15,8 +15,8 @@ Search AJAX APIs.  It has the following features:
 
 You will need a Google Maps API key and/or URL of the website where the
 information will be used (a referrer URL) to comply with Google's terms
-of service.  Google also imposes additional restrictions to their
-service , including limiting the number of queries per day.  This 
+of service.  Google also imposes additional restrictions on their
+service, including limiting the number of queries per day.  This 
 software is not related to Google Inc. in any way.  See the included HTML 
 documentation in doc/html or the interactive help for more.
 
@@ -24,10 +24,8 @@ documentation in doc/html or the interactive help for more.
 Dependencies
 ------------
 This module should work with Python 2.3 - 2.6+, and with Python 3+ via 2to3.
-Its only dependency is the json module, included as simplejson
-in versions of the Python standard library before 2.6, and available for
-download as simplejson for even earlier versions of the Python standard 
-library.
+Its only dependency is the json module, included with Python versions 2.6 and
+later and available for download as simplejson for earlier versions.
 
 
 Installation
@@ -38,8 +36,8 @@ You can install this package with easy_install using:
     
 Or if you have already downloaded the .tar.gz archive:
 
-    tar xzvf googlemaps-1.0.tar.gz
-    cd googlemaps-1.0
+    tar xzvf googlemaps-1.0.2.tar.gz
+    cd googlemaps-1.0.2
     python setup.py install
 
 
@@ -73,3 +71,17 @@ the same terms as this library.
 4. In any case, software using this library can be licensed however you like.
 
 See the files LICENSE.txt and AGPLv3.txt for details.
+
+
+Changelog
+---------
+Version 1.0.2:
+Refactored GoogleMapsError to contain status codes.
+
+Version 1.0.1:
+Fixed local search throwing an exception if Google returned fewer results
+than requested.
+
+Version 1.0:
+Initial Release
+

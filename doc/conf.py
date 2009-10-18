@@ -16,7 +16,8 @@
 
 import sys, os
 
-sys.path.append('../googlemaps')
+sys.path.insert(0, os.path.join('..', 'googlemaps'))
+import googlemaps
 
 # If your extensions (or modules documented by autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -31,16 +32,16 @@ sys.path.append('../googlemaps')
 # built documents.
 #
 # The short X.Y version.
-version = '1.0.1'
+version = googlemaps.VERSION 
 # The full version, including alpha/beta/rc tags.
 release = version
 
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.doctest']
+extensions = ['sphinx.ext.autodoc']
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['.templates']
+templates_path = ['_templates']
 
 # The suffix of source filenames.
 source_suffix = '.rst'

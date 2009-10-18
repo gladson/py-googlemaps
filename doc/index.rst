@@ -11,6 +11,8 @@
 .. _virtualenv: http://pypi.python.org/pypi/virtualenv
 .. _`Google Maps API key`: http://code.google.com/apis/maps/signup.html
 .. _`rate limits`: http://code.google.com/apis/maps/faq.html#geocoder_limit
+.. _simplejson: http://pypi.python.org/pypi/simplejson/
+
 
 =================================================================
 :mod:`googlemaps` -- Google Maps and Local Search APIs in Python
@@ -54,6 +56,8 @@ Installation
 It's as easy as::
 	
 	sudo easy_install googlemaps
+
+For Python versions prior to 2.6, you may also need the simplejson_ module.
 
 Not got root?  :mod:`googlemaps` plays nice with virtualenv_.
 

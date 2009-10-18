@@ -14,12 +14,12 @@ Distutils setup script for googlemaps module.
 from distutils.core import setup
 import sys
 
-sys.path.append('googlemaps')
+sys.path.insert(0, 'googlemaps')
 import googlemaps
 
 
 setup(name='googlemaps',
-      version='1.0.1',
+      version=googlemaps.VERSION,
       author='John Kleint',
       author_email='py-googlemaps-general@lists.sourceforge.net',
       url='http://sourceforge.net/projects/py-googlemaps/',
