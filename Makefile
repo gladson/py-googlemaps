@@ -3,19 +3,19 @@
 export PYTHONPATH := $(realpath googlemaps):$(PYTHONPATH)
 PYTHON=python
 SFUSER=doctorj
-SFPROJ=googlemaps
-SRCDIR=$(SFPROJ)
+SFPROJ=py-googlemaps
+SRCDIR=googlemaps
 # SourceForge's File Release System path needs the first 1 and 2 chars of the project name.
 SFPROJ1:=$(shell $(PYTHON) -c "print '$(SFPROJ)'[0]")
 SFPROJ2:=$(shell $(PYTHON) -c "print '$(SFPROJ)'[0:2]")
 
-.PHONY: doc release pypi-upload clean test
+.PHONY: doc release pypi clean test
 
 release: clean doc $(SRCDIR)/*.py test/*.py
 	rm -f dist/*
 	$(PYTHON) setup.py sdist bdist_wininst
 	# This is a workaround for a Python 2.6 bug
-	export VER=`python setup.py --version`;	mv dist/cityspeed-$${VER}.linux-x86_64.exe dist/cityspeed-$${VER}.win32.exe
+	export VER=`python setup.py --version`;	mv dist/$(SRCDIR)-$${VER}.linux-x86_64.exe dist/$(SRCDIR)-$${VER}.win32.exe
 	
 	rsync -rv --chmod=u+rwX,go+rX dist/* $(SFUSER),$(SFPROJ)@frs.sourceforge.net:/home/pfs/project/$(SFPROJ1)/$(SFPROJ2)/$(SFPROJ)/
 	rsync -rv --chmod=u+rwX,go+rX doc/html/* $(SFUSER),$(SFPROJ)@web.sourceforge.net:htdocs/
@@ -23,10 +23,10 @@ release: clean doc $(SRCDIR)/*.py test/*.py
 	@#scp -r doc/html/* $(SFUSER),$(SFPROJ)@web.sourceforge.net:htdocs/
 	@echo -e "\n\nDon't forget to do an svn commit if needed."
 
-pypi-upload: doc
+pypi: doc
 	$(PYTHON) setup.py sdist upload
 	@#$(PYTHON) setup.py bdist_wininst upload
-	echo "Upload win32.exe to PyPI."
+	@echo "Upload win32.exe to PyPI."
 
 doc:
 	cd doc; $(MAKE) html
