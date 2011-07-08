@@ -10,9 +10,6 @@
 An easy-to-use Python wrapper for the Google Maps and Local Search APIs.
 
 * **Geocoding**: convert a postal address to latitude and longitude
-* **Reverse Geocoding**: find the nearest address to (lat, lng)
-* **Local Search**: find places matching a query near a given location
-* **Directions**: turn-by-turn directions, distance, time, etc. from A to B
 
 """
 
@@ -25,7 +22,7 @@ except ImportError:
     import simplejson as json       # pylint: disable-msg=F0401
 
 
-VERSION = '1.0.2'
+VERSION = '1.1.0'
 __all__ = ['GoogleMaps', 'GoogleMapsError']
 
 
@@ -44,12 +41,12 @@ def fetch_json(query_url, params={}, headers={}):       # pylint: disable-msg=W0
     :rtype: (string, dict or array)
     
     """
-    encoded_params = urllib.urlencode(params)    
+    encoded_params = urllib.urlencode(params)
     url = query_url + encoded_params
     request = urllib2.Request(url, headers=headers)
     response = urllib2.urlopen(request)
     return (url, json.load(response))
-        
+
 
 class GoogleMapsError(Exception):
     """Base class for errors in the :mod:`googlemaps` module.
@@ -59,30 +56,17 @@ class GoogleMapsError(Exception):
     """
     #: See http://code.google.com/apis/maps/documentation/geocoding/index.html#StatusCodes
     #: for information on the meaning of these status codes.
-    G_GEO_SUCCESS               = 200
-    G_GEO_SERVER_ERROR          = 500
-    G_GEO_MISSING_QUERY         = 601
-    G_GEO_UNKNOWN_ADDRESS       = 602
-    G_GEO_UNAVAILABLE_ADDRESS   = 603
-    G_GEO_BAD_KEY               = 610
-    G_GEO_TOO_MANY_QUERIES      = 620   
-
-    _STATUS_MESSAGES = {
-        G_GEO_SUCCESS               : 'G_GEO_SUCCESS',
-        G_GEO_SERVER_ERROR          : 'G_GEO_SERVER_ERROR',
-        G_GEO_MISSING_QUERY         : 'G_GEO_MISSING_QUERY',
-        G_GEO_UNKNOWN_ADDRESS       : 'G_GEO_UNKNOWN_ADDRESS',
-        G_GEO_UNAVAILABLE_ADDRESS   : 'G_GEO_UNAVAILABLE_ADDRESS',
-        G_GEO_BAD_KEY               : 'G_GEO_BAD_KEY',
-        G_GEO_TOO_MANY_QUERIES      : 'G_GEO_TOO_MANY_QUERIES',
-    }
+    G_GEO_OK               = "OK"
+    G_GEO_ZERO_RESULTS     = "ZERO_RESULTS"
+    G_GEO_OVER_QUERY_LIMIT = "OVER_QUERY_LIMIT"
+    G_GEO_REQUEST_DENIED   = "REQUEST_DENIED"
+    G_GEO_INVALID_REQUEST  = "INVALID_REQUEST"
     
     def __init__(self, status, url=None, response=None):
         """Create an exception with a status and optional full response.
         
-        :param status: Either a ``G_GEO_`` code or a string explaining the 
-         exception.
-        :type status: int or string
+        :param status: A ``G_GEO_`` code
+        :type status: String
         :param url: The query URL that resulted in the error, if any.
         :type url: string
         :param response: The actual response returned from Google, if any.
@@ -100,7 +84,7 @@ class GoogleMapsError(Exception):
             if self.response is not None and 'responseDetails' in self.response:
                 retval = 'Error %d: %s' % (self.status, self.response['responseDetails'])
             else:
-                retval = 'Error %d: %s' % (self.status, self._STATUS_MESSAGES[self.status])
+                retval = 'Error %d: %s' % (self.status)
         else:
             retval = str(self.status)
         return retval
@@ -110,13 +94,12 @@ class GoogleMapsError(Exception):
         return unicode(self.__str__())
 
 
-STATUS_OK = GoogleMapsError.G_GEO_SUCCESS
-
+STATUS_OK = GoogleMapsError.G_GEO_OK
 
 class GoogleMaps(object):
     """
     An easy-to-use Python wrapper for the Google Maps and Local Search APIs.
-
+    
     **Geocoding**: convert a postal address to latitude and longitude
     
     >>> from googlemaps import GoogleMaps
@@ -127,7 +110,7 @@ class GoogleMaps(object):
     38.8921021 -77.0260358
     
     **Reverse Geocoding**: find the nearest address to (lat, lng)
-        
+    
     >>> destination = gmaps.latlng_to_address(38.887563, -77.019929)
     >>> print destination
     Independence and 6th SW, Washington, DC 20024, USA
@@ -160,13 +143,13 @@ class GoogleMaps(object):
     make.
     
     """
-
-    _GEOCODE_QUERY_URL = 'http://maps.google.com/maps/geo?'
-    _DIRECTIONS_QUERY_URL = 'http://maps.google.com/maps/nav?'
+    
+    _GEOCODE_QUERY_URL = 'http://maps.googleapis.com/maps/api/geocode/json?'
+    _DIRECTIONS_QUERY_URL = 'http://maps.googleapis.com/maps/api/directions/json?'
     _LOCAL_QUERY_URL = 'http://ajax.googleapis.com/ajax/services/search/local?'
     _LOCAL_RESULTS_PER_PAGE = 8
     MAX_LOCAL_RESULTS = 32
-
+    
     def __init__(self, api_key='', referrer_url=''):
         """
         Create a new :class:`GoogleMaps` object using the given `api_key` and 
@@ -178,104 +161,55 @@ class GoogleMaps(object):
          from this module.
         :type referrer_url: string
         
-        Google requires API users to register for an API key before using the
-        geocoding service; this can be done at
-        http://code.google.com/apis/maps/signup.html.
-        If you are not geocoding, you do not need an API key.
-        
-        Use of Google Local Search requires a referrer URL, generally the website
-        where the retrieved information will be used.  If you are not using
-        Local Search, you do not need a referrer URL.
-        
         """
         self.api_key = api_key
         self.referrer_url = referrer_url
-        
-    def geocode(self, query, sensor='false', oe='utf8', ll='', spn='', gl=''):       # pylint: disable-msg=C0103,R0913
+    
+    def geocode(self, address, sensor='false', bounds='', region='', language=''):       # pylint: disable-msg=C0103,R0913
         """
         Given a string address `query`, return a dictionary of information about
         that location, including its latitude and longitude.
         
         Interesting bits:
         
-        >>> gmaps = GoogleMaps(api_key)
+        >>> gmaps = GoogleMaps()
         >>> address = '350 Fifth Avenue New York, NY'
-        >>> result = gmaps.geocode(address)
-        >>> placemark = result['Placemark'][0]
-        >>> lng, lat = placemark['Point']['coordinates'][0:2]    # Note these are backwards from usual
-        >>> print lat, lng
-        40.6721118 -73.9838823
-        >>> details = placemark['AddressDetails']['Country']['AdministrativeArea']
-        >>> street = details['Locality']['Thoroughfare']['ThoroughfareName']
-        >>> city = details['Locality']['LocalityName']
-        >>> state = details['AdministrativeAreaName']
-        >>> zipcode = details['Locality']['PostalCode']['PostalCodeNumber']
-        >>> print ', '.join((street, city, state, zipcode))
-        350 5th Ave, Brooklyn, NY, 11215
-
+        >>> results = gmaps.geocode(address)
+        >>> results
+        [{u'geometry': {u'location': {u'lat': 40.748379, u'lng': -73.98555999999999}, u'viewport': {u'northeast': {u'lat': 40.7568316, u'lng': -73.9695526}, u'southwest': {u'lat': 40.7399254, u'lng': -74.0015674}}, u'location_type': u'APPROXIMATE'}, u'address_components': [{u'long_name': u'Empire State Bldg', u'types': [u'point_of_interest', u'establishment'], u'short_name': u'Empire State Bldg'}, {u'long_name': u'350', u'types': [u'street_number'], u'short_name': u'350'}, {u'long_name': u'5th Ave', u'types': [u'route'], u'short_name': u'5th Ave'}, {u'long_name': u'Manhattan', u'types': [u'sublocality', u'political'], u'short_name': u'Manhattan'}, {u'long_name': u'New York', u'types': [u'locality', u'political'], u'short_name': u'New York'}, {u'long_name': u'New York', u'types': [u'administrative_area_level_2', u'political'], u'short_name': u'New York'}, {u'long_name': u'New York', u'types': [u'administrative_area_level_1', u'political'], u'short_name': u'NY'}, {u'long_name': u'United States', u'types': [u'country', u'political'], u'short_name': u'US'}, {u'long_name': u'10001', u'types': [u'postal_code'], u'short_name': u'10001'}], u'formatted_address': u'Empire State Bldg, 350 5th Ave, New York, NY 10001, USA', u'types': [u'point_of_interest', u'establishment']}]
+        
         More documentation on the format of the return value can be found at 
-        Google's `geocoder return value`_ reference.  (Note: Some places have 
-        a `'SubAdministrativeArea'` and some don't; sometimes a `'Locality'` 
-        will have a `'DependentLocality'` and some don't.)
-        
-        .. _`geocoder return value`: http://code.google.com/apis/maps/documentation/geocoding/index.html#JSON
-
-        :param query: Address of location to be geocoded.
-        :type query: string
-        :param sensor: ``'true'`` if the address is coming from, say, a GPS device.
-        :type sensor: string
-        :param oe: Output Encoding; best left at ``'utf8'``.
-        :type oe: string
-        :param ll: `lat,lng` of the viewport center as comma-separated string;
-         must be used with `spn` for Viewport Biasing
-        :type ll: string  
-        :param spn: The "span" of the viewport; must be used with `ll`.
-        :type spn: string
-        :param gl: Two-character ccTLD_ for country code biasing. 
-        :type gl: string
-        :returns: `geocoder return value`_ dictionary
-        :rtype: dict 
-        :raises GoogleMapsError: if there is something wrong with the query.
-        
-        More information on the types and meaning of the parameters can be found
-        at the `Google HTTP Geocoder`__ site.
-        
-        __ http://code.google.com/apis/maps/documentation/geocoding/index.html
-        .. _ccTLD: http://en.wikipedia.org/wiki/Country_code_top-level_domain
+        Google's `geocoder return value`_ reference.
         
         """
-        if (ll is None and spn is not None) or (ll is not None and spn is None):
-            raise GoogleMapsError('Both ll and spn must be provided.')
+        if address is None:
+            raise GoogleMapsError('An address must be provided.')
+        
         params = {
-            'q':        query,
+            'address':  address,
             'key':      self.api_key,
             'sensor':   sensor,
-            'output':   'json',
-            'oe':       oe,
-            'll':       ll,
-            'spn':      spn,
-            'gl':       gl,
+            'bounds':   bounds,
+            'region':   region,
+            'language': language
         }
         url, response = fetch_json(self._GEOCODE_QUERY_URL, params=params)
-        status_code = response['Status']['code']
+        
+        status_code = response['status']
         if status_code != STATUS_OK:
             raise GoogleMapsError(status_code, url, response)
-        return response
-
-    def reverse_geocode(self, lat, lng, sensor='false', oe='utf8', ll='', spn='', gl=''):        # pylint: disable-msg=C0103,R0913
+        return response['results']
+    
+    def reverse_geocode(self, lat, lng, sensor='false', bounds='', region='', language=''):        # pylint: disable-msg=C0103,R0913
         """
         Converts a (latitude, longitude) pair to an address.
         
         Interesting bits:
         
-        >>> gmaps = GoogleMaps(api_key)
+        >>> gmaps = GoogleMaps()
         >>> reverse = gmaps.reverse_geocode(38.887563, -77.019929)
-        >>> address = reverse['Placemark'][0]['address']
-        >>> print address
-        Independence and 6th SW, Washington, DC 20024, USA
-        >>> accuracy = reverse['Placemark'][0]['AddressDetails']['Accuracy']
-        >>> print accuracy
-        9
+        >>> reverse
+        [{u'geometry': {u'location': {u'lat': 40.748379, u'lng': -73.98555999999999}, u'viewport': {u'northeast': {u'lat': 40.7568316, u'lng': -73.9695526}, u'southwest': {u'lat': 40.7399254, u'lng': -74.0015674}}, u'location_type': u'APPROXIMATE'}, u'address_components': [{u'long_name': u'Empire State Bldg', u'types': [u'point_of_interest', u'establishment'], u'short_name': u'Empire State Bldg'}, {u'long_name': u'350', u'types': [u'street_number'], u'short_name': u'350'}, {u'long_name': u'5th Ave', u'types': [u'route'], u'short_name': u'5th Ave'}, {u'long_name': u'Manhattan', u'types': [u'sublocality', u'political'], u'short_name': u'Manhattan'}, {u'long_name': u'New York', u'types': [u'locality', u'political'], u'short_name': u'New York'}, {u'long_name': u'New York', u'types': [u'administrative_area_level_2', u'political'], u'short_name': u'New York'}, {u'long_name': u'New York', u'types': [u'administrative_area_level_1', u'political'], u'short_name': u'NY'}, {u'long_name': u'United States', u'types': [u'country', u'political'], u'short_name': u'US'}, {u'long_name': u'10001', u'types': [u'postal_code'], u'short_name': u'10001'}], u'formatted_address': u'Empire State Bldg, 350 5th Ave, Manhattan, NY 10001, USA', u'types': [u'point_of_interest', u'establishment']}]
         
         :param lat: latitude
         :type lat: float
@@ -292,7 +226,7 @@ class GoogleMaps(object):
             http://code.google.com/apis/maps/documentation/geocoding/index.html#ReverseGeocoding
         
         """
-        return self.geocode("%f,%f" % (lat, lng), sensor=sensor, oe=oe, ll=ll, spn=spn, gl=gl)
+        return self.geocode("%f,%f" % (lat, lng), sensor=sensor, bounds=bounds, region=region, language=language)
     
     def address_to_latlng(self, address):
         """
@@ -307,7 +241,11 @@ class GoogleMaps(object):
         :raises GoogleMapsError: If the address could not be geocoded.
         
         """
-        return tuple(self.geocode(address)['Placemark'][0]['Point']['coordinates'][1::-1])
+        result = self.geocode(address)[0]
+        return {
+            u'lat':result['geometry']['location']['lat'],
+            u'lng':result['geometry']['location']['lng']
+        }
     
     def latlng_to_address(self, lat, lng):
         """
@@ -325,13 +263,13 @@ class GoogleMaps(object):
          to an address. 
         
         """ 
-        return self.reverse_geocode(lat, lng)['Placemark'][0]['address']
-
+        return self.reverse_geocode(lat, lng)[0]['formatted_address']
+    
     def local_search(self, query, numresults=_LOCAL_RESULTS_PER_PAGE, **kwargs):
         """
         Searches Google Local for the string `query` and returns a 
         dictionary of the results.
-    
+        
         >>> gmaps = GoogleMaps(api_key)
         >>> local = gmaps.local_search('sushi san francisco, ca')
         >>> result = local['responseData']['results'][0]
@@ -341,7 +279,7 @@ class GoogleMaps(object):
         1916 Hyde St
         >>> print result['phoneNumbers'][0]['number']
         (415) 440-1905
-
+        
         For more information on the available data, see Google's documentation on 
         `AJAX result structure`_ and `local result properties`_.
         
@@ -401,30 +339,29 @@ class GoogleMaps(object):
         if results is not None:
             results['responseData']['results'] = results['responseData']['results'][:numresults]
         return results
-
-    def directions(self, origin, destination, **kwargs):
+    
+    def directions(self, origin, destination, sensor='false', **kwargs):
         """
         Get driving directions from `origin` to `destination`.
-
+        
         Interesting bits:
-
-        >>> gmaps = GoogleMaps(api_key)
+        
+        >>> gmaps = GoogleMaps()
         >>> start = 'Constitution Ave NW & 10th St NW, Washington, DC'
         >>> end   = 'Independence and 6th SW, Washington, DC 20024, USA'
-        >>> dirs  = gmaps.directions(start, end) 
-        >>> time  = dirs['Directions']['Duration']['seconds']
-        >>> dist  = dirs['Directions']['Distance']['meters']
-        >>> route = dirs['Directions']['Routes'][0]
-        >>> for step in route['Steps']:
-        ...    print step['Point']['coordinates'][1], step['Point']['coordinates'][0] 
-        ...    print step['descriptionHtml']
-        38.8921 -77.02604
-        Head <b>east</b> on <b>Constitution Ave NW</b> toward <b>9th St NW</b>
-        38.89208 -77.02191
-        Take the 2nd <b>right</b> onto <b>7th St NW</b>
-        38.88757 -77.02191
-        Turn <b>left</b> at <b>Independence Ave SW</b>
-
+        >>> dirs  = gmaps.directions(start, end)
+        >>> gmaps = GoogleMaps()
+        >>> start = 'Constitution Ave NW & 10th St NW, Washington, DC'
+        >>> end   = 'Independence and 6th SW, Washington, DC 20024, USA'
+        >>> dirs  = gmaps.directions(start, end)
+        >>> dirs[0]
+        {u'overview_polyline': {u'levels': u'B@@B', u'points': u'sbklFfccuM@kXf[@?}L'}, u'warnings': [], u'bounds': {u'northeast': {u'lat': 38.89210000000001, u'lng': -77.01968000000001}, u'southwest': {u'lat': 38.88757, u'lng': -77.02596000000001}}, u'waypoint_order': [], u'summary': u'Constitution Ave NW and 7th St NW', u'copyrights': u'Map data \xa92011 Google, Sanborn', u'legs': [{u'distance': {u'text': u'0.6 mi', u'value': 1046}, u'end_address': u'Independence and 6th SW, Washington D.C., DC 20597, USA', u'via_waypoint': [], u'start_address': u'Constitution Ave NW & 10th St NW, Washington D.C., DC 20530, USA', u'start_location': {u'lat': 38.89210000000001, u'lng': -77.02596000000001}, u'steps': [{u'html_instructions': u'Head <b>east</b> on <b>Constitution Ave NW</b> toward <b>9th St NW</b>', u'distance': {u'text': u'0.2 mi', u'value': 351}, u'travel_mode': u'DRIVING', u'start_location': {u'lat': 38.89210000000001, u'lng': -77.02596000000001}, u'polyline': {u'levels': u'BB', u'points': u'sbklFfccuM@kX'}, u'duration': {u'text': u'1 min', u'value': 35}, u'end_location': {u'lat': 38.89209, u'lng': -77.0219}}, {u'html_instructions': u'Turn <b>right</b> onto <b>7th St NW</b>', u'distance': {u'text': u'0.3 mi', u'value': 502}, u'travel_mode': u'DRIVING', u'start_location': {u'lat': 38.89209, u'lng': -77.0219}, u'polyline': {u'levels': u'BB', u'points': u'qbklFzibuMf[@'}, u'duration': {u'text': u'2 mins', u'value': 93}, u'end_location': {u'lat': 38.88757, u'lng': -77.02191}}, {u'html_instructions': u'Turn <b>left</b> onto <b>Independence Ave SW</b><div style="font-size:0.9em">Destination will be on the left</div>', u'distance': {u'text': u'0.1 mi', u'value': 193}, u'travel_mode': u'DRIVING', u'start_location': {u'lat': 38.88757, u'lng': -77.02191}, u'polyline': {u'levels': u'BB', u'points': u'ifjlF|ibuM?}L'}, u'duration': {u'text': u'1 min', u'value': 43}, u'end_location': {u'lat': 38.88757, u'lng': -77.01968000000001}}], u'duration': {u'text': u'3 mins', u'value': 171}, u'end_location': {u'lat': 38.88757, u'lng': -77.01968000000001}}]}
+        >> for step in dirs[0]['legs'][0]['steps']:
+        ...   print step
+        {u'html_instructions': u'Head <b>east</b> on <b>Constitution Ave NW</b> toward <b>9th St NW</b>', u'distance': {u'text': u'0.2 mi', u'value': 351}, u'travel_mode': u'DRIVING', u'start_location': {u'lat': 38.89210000000001, u'lng': -77.02596000000001}, u'polyline': {u'levels': u'BB', u'points': u'sbklFfccuM@kX'}, u'duration': {u'text': u'1 min', u'value': 35}, u'end_location': {u'lat': 38.89209, u'lng': -77.0219}}
+        {u'html_instructions': u'Turn <b>right</b> onto <b>7th St NW</b>', u'distance': {u'text': u'0.3 mi', u'value': 502}, u'travel_mode': u'DRIVING', u'start_location': {u'lat': 38.89209, u'lng': -77.0219}, u'polyline': {u'levels': u'BB', u'points': u'qbklFzibuMf[@'}, u'duration': {u'text': u'2 mins', u'value': 93}, u'end_location': {u'lat': 38.88757, u'lng': -77.02191}}
+        {u'html_instructions': u'Turn <b>left</b> onto <b>Independence Ave SW</b><div style="font-size:0.9em">Destination will be on the left</div>', u'distance': {u'text': u'0.1 mi', u'value': 193}, u'travel_mode': u'DRIVING', u'start_location': {u'lat': 38.88757, u'lng': -77.02191}, u'polyline': {u'levels': u'BB', u'points': u'ifjlF|ibuM?}L'}, u'duration': {u'text': u'1 min', u'value': 43}, u'end_location': {u'lat': 38.88757, u'lng': -77.01968000000001}}
+        
         :param origin: Starting address
         :type origin: string
         :param destination: Ending address
@@ -436,19 +373,20 @@ class GoogleMaps(object):
         :raises GoogleMapsError: If Google Maps was unable to find directions.
         
         """
+        
         params = {
-            'q':        'from:%s to:%s' % (origin, destination),
-            'output':   'json',
-            'oe':       'utf8',
-            'key':      self.api_key,
+            'origin':       origin,
+            'destination':  destination,
+            'key':          self.api_key,
+            'sensor':       sensor
         }
         params.update(kwargs)
-
+        
         url, response = fetch_json(self._DIRECTIONS_QUERY_URL, params=params)
-        status_code = response['Status']['code']
+        status_code = response['status']
         if status_code != STATUS_OK:
             raise GoogleMapsError(status_code, url=url, response=response)
-        return response
+        return response['routes']
     
 
 if __name__ == "__main__":
@@ -466,7 +404,7 @@ if __name__ == "__main__":
         they are separated by a comma and no space.
         
         """
-
+        
         if len(argv) < 2 or len(argv) > 4:
             print main.__doc__
             sys.exit(1)

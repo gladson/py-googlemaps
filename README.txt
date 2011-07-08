@@ -1,5 +1,5 @@
-googlemaps 1.0.2
-16 Oct 2009
+googlemaps 1.1.0
+9 July 2011
 README
 =================
 
@@ -13,12 +13,10 @@ Search AJAX APIs.  It has the following features:
 * Local Search: find businesses and other points of interest near a given 
   location  
 
-You will need a Google Maps API key and/or URL of the website where the
-information will be used (a referrer URL) to comply with Google's terms
-of service.  Google also imposes additional restrictions on their
-service, including limiting the number of queries per day.  This 
-software is not related to Google Inc. in any way.  See the included HTML 
-documentation in doc/html or the interactive help for more.
+Google imposes restrictions on their service, including limiting the
+number of queries per day.  This  software is not related to Google Inc.
+in any way.  See the included HTML documentation in doc/html or the
+interactive help for more.
 
 
 Dependencies
@@ -36,8 +34,8 @@ You can install this package with easy_install using:
     
 Or if you have already downloaded the .tar.gz archive:
 
-    tar xzvf googlemaps-1.0.2.tar.gz
-    cd googlemaps-1.0.2
+    tar xzvf googlemaps-1.1.0.tar.gz
+    cd googlemaps-1.1.0
     python setup.py install
 
 
@@ -75,6 +73,10 @@ See the files LICENSE.txt and AGPLv3.txt for details.
 
 Changelog
 ---------
+Version 1.1.0:
+Updated to use latest API request formats and results.
+Made by @d2kagw
+
 Version 1.0.2:
 Refactored GoogleMapsError to contain status codes.
 
